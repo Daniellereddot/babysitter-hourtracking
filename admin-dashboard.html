@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>לוח ניהול בייביסיטרות</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; color: #1a1a2e; direction: rtl; min-height: 100vh; }
+#setup-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 30px 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); }
+#setup-screen.hidden { display: none; }
+.setup-card { background: white; border-radius: 20px; padding: 36px 28px; width: 100%; max-width: 480px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); text-align: center; }
+.setup-card h1 { font-size: 1.6rem; color: #333; margin-bottom: 8px; }
+.setup-card p { color: #777; margin-bottom: 24px; font-size: 0.95rem; }
+.config-input { width: 100%; padding: 12px 14px; border: 2px solid #e8e8e8; border-radius: 10px; font-size: 0.9rem; direction: ltr; text-align: left; margin-bottom: 10px; }
+.config-input:focus { outline: none; border-color: #667eea; }
+.setup-btn { width: 100%; padding: 15px; background: linear-gradient(135deg, #1a1a2e, #16213e); color: white; border: none; border-radius: 12px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 6px; }
+.help-block { background: #e8f4fd; border: 1px solid #b3d9f5; border-radius: 10px; padding: 14px; margin-bottom: 20px; text-align: right; font-size: 0.85rem; color: #444; line-height: 1.7; }
+.help-block strong { display: block; margin-bottom: 6px; color: #1565c0; }
+.help-block a { color: #1565c0; }
+#main-app { display: none; }
+#main-app.visible { display: flex; min-height: 100vh; }
+.sidebar { width: 220px; min-height: 100vh; background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%); color: white; flex-shrink: 0; }
+.sidebar-header { padding: 24px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+.sidebar-header h2 { font-size: 1rem; margin-bottom: 4px; }
+.sync-status { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 0.8rem; opacity: 0.8; }
+.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #ff4444; transition: background 0.3s; }
+.sync-dot.connected { background: #4caf50; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 14px 20px; cursor: pointer; font-size: 0.9rem; border-right: 3px solid transparent; transition: all 0.2s; color: rgba(255,255,255,0.7); }
+.nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
+.nav-item.active { border-right-color: #667eea; background: rgba(102,126,234,0.15); color: white; }
+.main-content { flex: 1; padding: 28px; overflow-x: hidden; }
+.page { display: none; }
+.page.active { display: block; }
+.page-title { font-size: 1.5rem; font-weight: 700; color: #1a1a2e; margin-bottom: 24px; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 28px; }
+.stat-card { background: white; border-radius: 16px; padding: 22px; box-shadow: 0 2px 10px rgba(0,0,0,0.07); position: relative; overflow: hidden; }
+.stat-card::before { content: ''; position: absolute; top: 0; right: 0; width: 4px; height: 100%; background: var(--accent, #667eea); }
+.stat-label { font-size: 0.8rem; color: #888; margin-bottom: 6px; }
+.stat-value { font-size: 1.9rem; font-weight: 800; color: #1a1a2e; }
+.nannies-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.nanny-card { background: white; border-radius: 16px; padding: 22px; box-shadow: 0 2px 10px rgba(0,0,0,0.07); }
+.nanny-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+.nanny-name { font-size: 1.1rem; font-weight: 700; color: #1a1a2e; }
+.nanny-rate { font-size: 0.8rem; color: #888; margin-top: 2px; }
+.nanny-badge { background: #e8f5e9; color: #2e7d32; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+.nanny-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.nanny-stat { text-align: center; background: #f8f9ff; border-radius: 10px; padding: 10px 6px; }
+.ns-val { font-size: 1.1rem; font-weight: 700; color: #333; }
+.ns-lbl { font-size: 0.7rem; color: #888; margin-top: 2px; }
+.nanny-total { margin-top: 16px; padding-top: 14px; border-top: 2px solid #f0f2f5; display: flex; justify-content: space-between; align-items: center; }
+.nanny-total .label { font-size: 0.85rem; color: #555; }
+.nanny-total .amount { font-size: 1.3rem; font-weight: 800; color: #667eea; }
+.last-active { font-size: 0.75rem; color: #aaa; margin-top: 8px; }
+.table-wrap { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.07); margin-bottom: 20px; }
+table { width: 100%; border-collapse: collapse; }
+thead { background: #f8f9ff; }
+th { padding: 14px 16px; font-size: 0.82rem; color: #888; font-weight: 600; text-align: right; white-space: nowrap; }
+td { padding: 14px 16px; border-top: 1px solid #f0f2f5; font-size: 0.9rem; }
+tr:hover td { background: #fafbff; }
+.amount-cell { font-weight: 700; color: #333; }
+.unpaid-badge { background: #fff3e0; color: #e65100; padding: 3px 8px; border-radius: 20px; font-size: 0.75rem; }
+.empty-state { text-align: center; padding: 60px 20px; color: #aaa; }
+.empty-icon { font-size: 4rem; margin-bottom: 12px; }
+.refresh-btn { background: #667eea; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 0.85rem; cursor: pointer; margin-bottom: 16px; }
+@media (max-width: 768px) {
+  #main-app.visible { flex-direction: column; }
+  .sidebar { width: 100%; min-height: auto; }
+  .sidebar nav { display: flex; overflow-x: auto; }
+  .nav-item { white-space: nowrap; border-right: none; border-bottom: 3px solid transparent; }
+  .nav-item.active { border-bottom-color: #667eea; border-right: none; }
+  .main-content { padding: 16px; }
+}
+</style>
+</head>
+<body>
+
+<div id="setup-screen">
+  <div class="setup-card">
+    <div style="font-size:3rem;margin-bottom:12px">&#128187;</div>
+    <h1>&#1500;&#1493;&#1495; &#1504;&#1497;&#1492;&#1493;&#1500; &#1489;&#1497;&#1497;&#1489;&#1497;&#1505;&#1497;&#1496;&#1512;&#1493;&#1514;</h1>
+    <p>&#1492;&#1494;&#1503; &#1508;&#1512;&#1496;&#1497; Firebase &#1500;&#1505;&#1504;&#1499;&#1512;&#1493;&#1503; &#1489;&#1494;&#1502;&#1503; &#1488;&#1502;&#1514;</p>
+    <div class="help-block">
+      <strong>&#128203; &#1492;&#1493;&#1512;&#1488;&#1493;&#1514; &#1492;&#1490;&#1491;&#1512;&#1514; Firebase</strong>
+      1. &#1492;&#1497;&#1499;&#1504;&#1505;&#1493; &#1500;-console.firebase.google.com<br>
+      2. &#1510;&#1512;&#1493; &#1508;&#1512;&#1493;&#1497;&#1511;&#1496; &#1499;&#1500;&#1513;&#1492;&#1493; &rarr; Build &rarr; Realtime Database &rarr; Create Database<br>
+      3. Rules tab &rarr; &#1513;&#1504;&#1493; false &#1500;-true &#1489;&#1513;&#1504;&#1497; &#1492;&#1513;&#1493;&#1512;&#1493;&#1514; &rarr; Publish<br>
+      4. &#1490;&#1500;&#1490;&#1500; &#1513;&#1497;&#1504;&#1497;&#1497;&#1501; (&#1508;&#1512;&#1493;&#1497;&#1511;&#1496; settings) &rarr; Your apps &rarr; Web App (&lt;/&gt;) &rarr; &#1492;&#1506;&#1514;&#1497;&#1511;&#1493; config<br>
+      5. &#1492;&#1491;&#1489;&#1497;&#1511;&#1493; &#1488;&#1514; &#1492;&#1506;&#1512;&#1499;&#1497;&#1501; &#1489;&#1513;&#1491;&#1493;&#1514; &#1500;&#1502;&#1496;&#1492;
+    </div>
+    <input class="config-input" id="cfg-apiKey" placeholder="apiKey" />
+    <input class="config-input" id="cfg-projectId" placeholder="projectId" />
+    <input class="config-input" id="cfg-dbUrl" placeholder="databaseURL (https://xxx-default-rtdb.firebaseio.com)" />
+    <button class="setup-btn" onclick="connectFirebase()">&#128279; &#1492;&#1514;&#1495;&#1489;&#1512;&#1493;&#1514; &#1500;Firebase</button>
+  </div>
+</div>
+
+<div id="main-app">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h2>&#128118; &#1502;&#1504;&#1492;&#1500; &#1492;&#1489;&#1497;&#1497;&#1489;&#1497;&#1505;&#1497;&#1496;&#1512;&#1493;&#1514;</h2>
+      <div style="font-size:0.75rem;opacity:0.6">&#1500;&#1493;&#1495; &#1504;&#1497;&#1492;&#1493;&#1500;</div>
+      <div class="sync-status">
+        <div class="sync-dot" id="sync-dot"></div>
+        <span id="sync-label">&#1502;&#1514;&#1495;&#1489;&#1512;...</span>
+      </div>
+    </div>
+    <nav>
+      <div class="nav-item active" onclick="showPage('dashboard', this)">&#128202; &#1500;&#1493;&#1495; &#1489;&#1511;&#1512;&#1492;</div>
+      <div class="nav-item" onclick="showPage('nannies', this)">&#128118; &#1492;&#1489;&#1497;&#1497;&#1489;&#1497;&#1505;&#1497;&#1496;&#1512;&#1493;&#1514;</div>
+      <div class="nav-item" onclick="showPage('payments', this)">&#128179; &#1514;&#1513;&#1500;&#1493;&#1502;&#1497;&#1501;</div>
+    </nav>
+  </div>
+  <div class="main-content">
+    <div id="page-dashboard" class="page active">
+      <div class="page-title">&#128202; &#1500;&#1493;&#1495; &#1489;&#1511;&#1512;&#1492;</div>
+      <button class="refresh-btn" onclick="loadData()">&#128260; &#1512;&#1506;&#1504;&#1503; &#1504;&#1514;&#1493;&#1504;&#1497;&#1501;</button>
+      <div class="stats-grid">
+        <div class="stat-card" style="--accent:#667eea"><div class="stat-label">&#1489;&#1497;&#1497;&#1489;&#1497;&#1505;&#1497;&#1496;&#1512;&#1493;&#1514; &#1508;&#1506;&#1497;&#1500;&#1493;&#1514;</div><div class="stat-value" id="stat-nannies">-</div></div>
+        <div class="stat-card" style="--accent:#4caf50"><div class="stat-label">&#1500;&#1514;&#1513;&#1500;&#1493;&#1501; (&#1505;&#1492;"&#1499;)</div><div class="stat-value" id="stat-total">&#8362;-</div></div>
+        <div class="stat-card" style="--accent:#ff9800"><div class="stat-label">&#1513;&#1506;&#1493;&#1514; &#1506;&#1489;&#1493;&#1491;&#1492; (&#1505;&#1492;"&#1499;)</div><div class="stat-value" id="stat-hours">-</div></div>
+        <div class="stat-card" style="--accent:#e91e63"><div class="stat-label">&#1492;&#1493;&#1510;&#1488;&#1493;&#1514; (&#1504;&#1505;&#1497;&#1506;&#1493;&#1514; + &#1511;&#1504;&#1497;&#1493;&#1514;)</div><div class="stat-value" id="stat-expenses">&#8362;-</div></div>
+      </div>
+      <div id="dashboard-nannies"></div>
+    </div>
+    <div id="page-nannies" class="page">
+      <div class="page-title">&#128118; &#1492;&#1489;&#1497;&#1497;&#1489;&#1497;&#1505;&#1497;&#1496;&#1512;&#1493;&#1514;</div>
+      <button class="refresh-btn" onclick="loadData()">&#128260; &#1512;&#1506;&#1504;&#1503; &#1504;&#1514;&#1493;&#1504;&#1497;&#1501;</button>
+      <div id="nannies-grid" class="nannies-grid"></div>
+    </div>
+    <div id="page-payments" class="page">
+      <div class="page-title">&#128179; &#1514;&#1513;&#1500;&#1493;&#1502;&#1497;&#1501;</div>
+      <button class="refresh-btn" onclick="loadData()">&#128260; &#1512;&#1506;&#1504;&#1503; &#1504;&#1514;&#1493;&#1504;&#1497;&#1501;</button>
+      <div id="payments-table"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script>
+var db = null;
+var allNanniesData = {};
+
+function connectFirebase() {
+  var apiKey = document.getElementById('cfg-apiKey').value.trim();
+  var projectId = document.getElementById('cfg-projectId').value.trim();
+  var databaseURL = document.getElementById('cfg-dbUrl').value.trim();
+  if (!apiKey || !projectId || !databaseURL) { alert('Please fill all fields'); return; }
+  // Strip trailing slash and any child path — URL must be root only
+  try {
+    var u = new URL(databaseURL);
+    databaseURL = u.protocol + '//' + u.host;
+  } catch(e) {
+    databaseURL = databaseURL.replace(/\/$/, '').split('/').slice(0,3).join('/');
+  }
+  document.getElementById('cfg-dbUrl').value = databaseURL;
+  var config = { apiKey: apiKey, authDomain: projectId+'.firebaseapp.com', databaseURL: databaseURL, projectId: projectId, storageBucket: projectId+'.appspot.com', messagingSenderId: '000000000000', appId: '1:000000000000:web:000000' };
+  localStorage.setItem('adminFirebaseConfig', JSON.stringify(config));
+  try {
+    if (!firebase.apps.length) { firebase.initializeApp(config); }
+    db = firebase.database();
+    db.ref('.info/connected').on('value', function(snap) {
+      var ok = snap.val();
+      document.getElementById('sync-dot').className = 'sync-dot' + (ok ? ' connected' : '');
+      document.getElementById('sync-label').textContent = ok ? 'Connected live' : 'Disconnected';
+    });
+    document.getElementById('setup-screen').classList.add('hidden');
+    document.getElementById('main-app').classList.add('visible');
+    loadData();
+  } catch(e) { alert('Firebase error: ' + e.message); }
+}
+
+function loadData() {
+  if (!db) return;
+  db.ref('nannies').on('value', function(snap) {
+    allNanniesData = snap.val() || {};
+    renderDashboard(); renderNannies(); renderPayments();
+  });
+}
+
+function calcNanny(data) {
+  var hours = data.hours || []; var travel = data.travel || []; var grocery = data.grocery || [];
+  if (!Array.isArray(hours)) hours = Object.values(hours);
+  if (!Array.isArray(travel)) travel = Object.values(travel);
+  if (!Array.isArray(grocery)) grocery = Object.values(grocery);
+  var hoursPay = hours.reduce(function(s,e){ return s+(e.pay||0); }, 0);
+  var totalHours = hours.reduce(function(s,e){ return s+(e.hours||0); }, 0);
+  var travelCost = travel.reduce(function(s,e){ return s+(e.amount||0); }, 0);
+  var groceryCost = grocery.reduce(function(s,e){ return s+(e.amount||0); }, 0);
+  return { hoursPay: hoursPay, totalHours: totalHours, travelCost: travelCost, groceryCost: groceryCost, total: hoursPay+travelCost+groceryCost };
+}
+
+function nannyCardHtml(p, c) {
+  var lastActive = p.lastActive ? new Date(p.lastActive).toLocaleDateString('he-IL') : 'Unknown';
+  return '<div class="nanny-card">' +
+    '<div class="nanny-card-header"><div><div class="nanny-name">'+(p.name||'No name')+'</div><div class="nanny-rate">&#8362;'+(p.hourlyRate||0)+'/hr</div></div><div class="nanny-badge">Active</div></div>' +
+    '<div class="nanny-stats">' +
+    '<div class="nanny-stat"><div class="ns-val">'+c.totalHours.toFixed(1)+'</div><div class="ns-lbl">Hours</div></div>' +
+    '<div class="nanny-stat"><div class="ns-val">&#8362;'+c.travelCost.toFixed(0)+'</div><div class="ns-lbl">Travel</div></div>' +
+    '<div class="nanny-stat"><div class="ns-val">&#8362;'+c.groceryCost.toFixed(0)+'</div><div class="ns-lbl">Grocery</div></div>' +
+    '</div>' +
+    '<div class="nanny-total"><span class="label">Total due</span><span class="amount">&#8362;'+c.total.toFixed(0)+'</span></div>' +
+    '<div class="last-active">Last active: '+lastActive+'</div>' +
+    '</div>';
+}
+
+function renderDashboard() {
+  var keys = Object.keys(allNanniesData);
+  var totalPay=0, totalHours=0, totalExpenses=0;
+  keys.forEach(function(k){ var c=calcNanny(allNanniesData[k]); totalPay+=c.total; totalHours+=c.totalHours; totalExpenses+=c.travelCost+c.groceryCost; });
+  document.getElementById('stat-nannies').textContent = keys.length;
+  document.getElementById('stat-total').textContent = '&#8362;'+totalPay.toFixed(0);
+  document.getElementById('stat-hours').textContent = totalHours.toFixed(1);
+  document.getElementById('stat-expenses').textContent = '&#8362;'+totalExpenses.toFixed(0);
+  var html = keys.length === 0 ? '<div class="empty-state"><div class="empty-icon">&#128118;</div><p>No nannies yet. Share the nanny app link!</p></div>' :
+    '<div class="nannies-grid">'+keys.map(function(k){ var d=allNanniesData[k]; return nannyCardHtml(d.profile||{}, calcNanny(d)); }).join('')+'</div>';
+  document.getElementById('dashboard-nannies').innerHTML = html;
+}
+
+function renderNannies() {
+  var keys = Object.keys(allNanniesData);
+  var grid = document.getElementById('nannies-grid');
+  grid.innerHTML = keys.length === 0 ? '<div class="empty-state"><div class="empty-icon">&#128118;</div><p>No nannies yet</p></div>' :
+    keys.map(function(k){ var d=allNanniesData[k]; return nannyCardHtml(d.profile||{}, calcNanny(d)); }).join('');
+}
+
+function renderPayments() {
+  var keys = Object.keys(allNanniesData);
+  var container = document.getElementById('payments-table');
+  if (!keys.length) { container.innerHTML='<div class="empty-state"><div class="empty-icon">&#128179;</div><p>No payment data yet</p></div>'; return; }
+  var rows = keys.map(function(k){
+    var d=allNanniesData[k]; var p=d.profile||{}; var c=calcNanny(d);
+    return '<tr><td>'+(p.name||'No name')+'</td><td>&#8362;'+(p.hourlyRate||0)+'/hr</td><td class="amount-cell">'+c.totalHours.toFixed(1)+' hrs</td><td class="amount-cell">&#8362;'+c.hoursPay.toFixed(0)+'</td><td class="amount-cell">&#8362;'+(c.travelCost+c.groceryCost).toFixed(0)+'</td><td class="amount-cell" style="color:#667eea;font-size:1.05rem">&#8362;'+c.total.toFixed(0)+'</td><td><span class="unpaid-badge">Unpaid</span></td></tr>';
+  }).join('');
+  container.innerHTML='<div class="table-wrap"><table><thead><tr><th>Name</th><th>Rate</th><th>Hours</th><th>Pay</th><th>Expenses</th><th>Total Due</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+  document.getElementById('page-'+name).classList.add('active');
+  el.classList.add('active');
+}
+
+window.onload = function() {
+  var stored = localStorage.getItem('adminFirebaseConfig');
+  if (stored) {
+    try {
+      var config = JSON.parse(stored);
+      document.getElementById('cfg-apiKey').value = config.apiKey||'';
+      document.getElementById('cfg-projectId').value = config.projectId||'';
+      document.getElementById('cfg-dbUrl').value = config.databaseURL||'';
+    } catch(e) {}
+  }
+};
+</script>
+</body>
+</html>
