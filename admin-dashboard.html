@@ -98,6 +98,18 @@ tr:hover td { background: #fafbff; }
 .empty-icon { font-size: 4rem; margin-bottom: 12px; }
 .refresh-btn { background: #667eea; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-size: 0.85rem; cursor: pointer; margin-bottom: 16px; }
 
+/* HISTORY */
+.btn-history { width: 100%; margin-top: 10px; padding: 8px; background: #f8f9ff; color: #667eea; border: 1px solid #e0e4ff; border-radius: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; text-align: center; transition: background 0.2s; }
+.btn-history:hover { background: #eef0ff; }
+.history-section { display: none; margin-top: 12px; border-top: 2px dashed #e0e4ff; padding-top: 12px; }
+.history-section.open { display: block; }
+.history-title { font-size: 0.78rem; font-weight: 700; color: #9e9e9e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.history-item { background: #f8f9ff; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; border-right: 3px solid #667eea; }
+.history-item-date { font-size: 0.78rem; font-weight: 700; color: #667eea; margin-bottom: 5px; }
+.history-item-row { display: flex; justify-content: space-between; font-size: 0.78rem; color: #666; padding: 1px 0; }
+.history-item-total { display: flex; justify-content: space-between; font-size: 0.88rem; font-weight: 800; color: #1a1a2e; margin-top: 6px; padding-top: 5px; border-top: 1px solid #e8eaff; }
+.no-history { font-size: 0.78rem; color: #ccc; font-style: italic; text-align: center; padding: 8px 0; }
+
 /* TOAST */
 .toast { position: fixed; top: 24px; left: 50%; transform: translateX(-50%) translateY(-20px); background: #333; color: white; padding: 12px 24px; border-radius: 30px; font-size: 0.9rem; font-weight: 600; z-index: 9999; opacity: 0; transition: all 0.3s; pointer-events: none; white-space: nowrap; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -342,6 +354,7 @@ function nannyCardHtml(key, p, c) {
     '<button class="btn-paid" onclick="markPaid(\''+key+'\', \''+encodeURIComponent(p.name||'')+'\')">&#10003; שולם — אפס נתונים</button>' +
     '<button class="btn-delete" onclick="deleteNanny(\''+key+'\', \''+encodeURIComponent(p.name||'')+'\')">&#128465;</button>' +
     '</div>' +
+    historyHtml(key) +
     '</div>';
 }
 
@@ -371,21 +384,61 @@ function renderPayments() {
   var keys = Object.keys(allNanniesData);
   var container = document.getElementById('payments-table');
   if (!keys.length) { container.innerHTML='<div class="empty-state"><div class="empty-icon">&#128179;</div><p>אין נתוני תשלום עדיין</p></div>'; return; }
+
+  // Current due table
   var rows = keys.map(function(k){
     var d=allNanniesData[k]; var p=d.profile||{}; var c=calcNanny(d);
     return '<tr>'+
       '<td>'+(p.name||'ללא שם')+'</td>'+
       '<td>&#8362;'+(p.hourlyRate||0)+' לשעה</td>'+
-      '<td class="amount-cell">'+c.totalHours.toFixed(1)+' שעות</td>'+
+      '<td class="amount-cell">'+c.totalHours.toFixed(1)+' שע\'</td>'+
       '<td class="amount-cell">&#8362;'+c.hoursPay.toFixed(0)+'</td>'+
       '<td class="amount-cell">&#8362;'+(c.travelCost+c.groceryCost).toFixed(0)+'</td>'+
       '<td class="amount-cell" style="color:#667eea;font-size:1.05rem">&#8362;'+c.total.toFixed(0)+'</td>'+
       '<td><button class="btn-paid" style="font-size:0.75rem;padding:6px 10px" onclick="markPaid(\''+k+'\', \''+encodeURIComponent(p.name||'')+'\')">&#10003; שולם</button></td>'+
       '</tr>';
   }).join('');
-  container.innerHTML='<div class="table-wrap"><table>'+
-    '<thead><tr><th>שם</th><th>תעריף</th><th>שעות</th><th>שכר עבודה</th><th>הוצאות</th><th>סה"כ לתשלום</th><th>פעולה</th></tr></thead>'+
+  var currentHtml = '<div style="font-size:1rem;font-weight:700;color:#1a1a2e;margin-bottom:12px">💳 לתשלום כעת</div>' +
+    '<div class="table-wrap"><table>'+
+    '<thead><tr><th>שם</th><th>תעריף</th><th>שעות</th><th>שכר</th><th>הוצאות</th><th>סה"כ</th><th>פעולה</th></tr></thead>'+
     '<tbody>'+rows+'</tbody></table></div>';
+
+  // Payment history table - all past payments across all nannies
+  var histRows = [];
+  keys.forEach(function(k){
+    var d = allNanniesData[k] || {};
+    var p = d.profile || {};
+    var history = d.history || {};
+    var items = Array.isArray(history) ? history.filter(Boolean) : Object.values(history);
+    items.forEach(function(item){
+      histRows.push({ name: p.name||'ללא שם', item: item });
+    });
+  });
+  histRows.sort(function(a,b){ return new Date(b.item.paidAt||0) - new Date(a.item.paidAt||0); });
+
+  var histHtml = '';
+  if (histRows.length === 0) {
+    histHtml = '<div style="color:#bbb;font-size:0.85rem;font-style:italic;text-align:center;padding:16px">אין היסטוריית תשלומים עדיין — לחצי "שולם" כדי להתחיל לצבור</div>';
+  } else {
+    var hRows = histRows.map(function(r){
+      var item = r.item;
+      return '<tr>'+
+        '<td><strong>'+r.name+'</strong></td>'+
+        '<td>'+( item.paidAtDisplay||'' )+'</td>'+
+        '<td class="amount-cell">'+( (item.totalHours||0).toFixed(1) )+' שע\'</td>'+
+        '<td class="amount-cell">&#8362;'+( (item.hoursPay||0).toFixed(0) )+'</td>'+
+        '<td class="amount-cell">&#8362;'+( ((item.travelCost||0)+(item.groceryCost||0)).toFixed(0) )+'</td>'+
+        '<td class="amount-cell" style="color:#2e7d32;font-size:1rem">&#8362;'+( (item.total||0).toFixed(0) )+'</td>'+
+        '</tr>';
+    }).join('');
+    histHtml = '<div class="table-wrap"><table>'+
+      '<thead><tr><th>שם</th><th>תאריך תשלום</th><th>שעות</th><th>שכר</th><th>הוצאות</th><th>סה"כ שולם</th></tr></thead>'+
+      '<tbody>'+hRows+'</tbody></table></div>';
+  }
+
+  container.innerHTML = currentHtml +
+    '<div style="font-size:1rem;font-weight:700;color:#1a1a2e;margin:24px 0 12px">📋 היסטוריית תשלומים</div>' +
+    histHtml;
 }
 
 /* ---- EDIT ---- */
@@ -417,15 +470,32 @@ function saveEdit() {
 /* ---- MARK PAID ---- */
 function markPaid(key, encodedName) {
   var name = decodeURIComponent(encodedName);
-  if (!confirm('סימון תשלום עבור '+name+' — זה ימחק את כל השעות, הנסיעות והקניות הרשומות. להמשיך?')) return;
+  if (!confirm('סימון תשלום עבור '+name+' — זה ימחק את כל השעות, הנסיעות והקניות הרשומות. הנתונים יישמרו בהיסטוריה. להמשיך?')) return;
   if (!db) return;
-  var updates = {};
-  updates['nannies/'+key+'/hours'] = null;
-  updates['nannies/'+key+'/travel'] = null;
-  updates['nannies/'+key+'/grocery'] = null;
-  updates['nannies/'+key+'/ping'] = null;
-  db.ref().update(updates)
-    .then(function(){ showToast('&#9989; '+name+' — סומן כשולם, נתונים אופסו'); })
+  var d = allNanniesData[key] || {};
+  var c = calcNanny(d);
+  var now = new Date();
+  var snapshot = {
+    paidAt: now.toISOString(),
+    paidAtDisplay: now.toLocaleDateString('he-IL', {day:'2-digit', month:'2-digit', year:'numeric'}),
+    rate: parseFloat((d.profile||{}).hourlyRate) || 0,
+    totalHours: c.totalHours,
+    hoursPay: c.hoursPay,
+    travelCost: c.travelCost,
+    groceryCost: c.groceryCost,
+    total: c.total
+  };
+  // Save snapshot to history first, then clear current data
+  db.ref('nannies/'+key+'/history').push(snapshot)
+    .then(function() {
+      var updates = {};
+      updates['nannies/'+key+'/hours'] = null;
+      updates['nannies/'+key+'/travel'] = null;
+      updates['nannies/'+key+'/grocery'] = null;
+      updates['nannies/'+key+'/ping'] = null;
+      return db.ref().update(updates);
+    })
+    .then(function(){ showToast('&#9989; '+name+' — סומן כשולם ונשמר בהיסטוריה'); })
     .catch(function(e){ alert('שגיאה: '+e.message); });
 }
 
@@ -437,6 +507,46 @@ function deleteNanny(key, encodedName) {
   db.ref('nannies/'+key).remove()
     .then(function(){ showToast('&#128465; '+name+' נמחקה'); })
     .catch(function(e){ alert('שגיאה: '+e.message); });
+}
+
+/* ---- HISTORY TOGGLE ---- */
+function toggleHistory(key) {
+  var section = document.getElementById('hist-'+key);
+  if (!section) return;
+  section.classList.toggle('open');
+  var btn = document.getElementById('histbtn-'+key);
+  if (btn) {
+    var history = (allNanniesData[key]||{}).history || {};
+    var count = Array.isArray(history) ? history.length : Object.keys(history).length;
+    btn.textContent = section.classList.contains('open')
+      ? '▲ הסתר היסטוריה'
+      : '📋 היסטוריית תשלומים (' + count + ')';
+  }
+}
+
+function historyHtml(key) {
+  var d = allNanniesData[key] || {};
+  var history = d.history || {};
+  var items = Array.isArray(history) ? history.filter(Boolean) : Object.values(history);
+  // Sort newest first
+  items.sort(function(a,b){ return new Date(b.paidAt||0) - new Date(a.paidAt||0); });
+  var count = items.length;
+  var innerHtml = count === 0
+    ? '<div class="no-history">אין תשלומים קודמים</div>'
+    : items.map(function(item) {
+        return '<div class="history-item">' +
+          '<div class="history-item-date">✅ שולם ב-' + (item.paidAtDisplay||'') + '</div>' +
+          '<div class="history-item-row"><span>שעות עבודה (' + (item.totalHours||0).toFixed(1) + ' שע\')</span><span>&#8362;' + (item.hoursPay||0).toFixed(0) + '</span></div>' +
+          '<div class="history-item-row"><span>נסיעות</span><span>&#8362;' + (item.travelCost||0).toFixed(0) + '</span></div>' +
+          '<div class="history-item-row"><span>קניות</span><span>&#8362;' + (item.groceryCost||0).toFixed(0) + '</span></div>' +
+          '<div class="history-item-total"><span>סה"כ שולם</span><span>&#8362;' + (item.total||0).toFixed(0) + '</span></div>' +
+          '</div>';
+      }).join('');
+  return '<button class="btn-history" id="histbtn-'+key+'" onclick="toggleHistory(\''+key+'\')">📋 היסטוריית תשלומים (' + count + ')</button>' +
+    '<div class="history-section" id="hist-'+key+'">' +
+    '<div class="history-title">היסטוריית תשלומים</div>' +
+    innerHtml +
+    '</div>';
 }
 
 function showPage(name, el) {
